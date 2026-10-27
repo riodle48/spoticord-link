@@ -104,7 +104,21 @@ export default async function LinkAccountPage({
 
   const user = await getCurrentUser(access_token);
 
-  if (user.product !== "premium") {
+  if (!user || !user.id || user.product !== "premium") {
+    console.error("Spotify /v1/me did not confirm premium:", JSON.stringify(user));
+  }
+
+  if (!user || !user.id) {
+    return (
+      <ErrorPage title="Couldn't read your Spotify profile">
+        Spotify didn&apos;t return your profile. Please try again, or request a
+        new link from the bot.
+      </ErrorPage>
+    );
+  }
+
+  // Only block when Spotify explicitly reports a non-premium plan
+  if (user.product && user.product !== "premium") {
     return (
       <ErrorPage title="Spotify Premium required">
         A Spotify Premium account is required to be able to use Spoticord.
