@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { AlertTriangle, ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { buildAuthorizeUrl } from "@/lib/spotify";
 
 type Params = Promise<{ request: string }>;
 
@@ -42,15 +43,7 @@ export default async function LinkAccountPage({ params }: { params: Params }) {
           : Number(user.discriminator) % 5,
       );
 
-  const searchParams = new URLSearchParams({
-    response_type: "code",
-    client_id: process.env.SPOTIFY_CLIENT_ID!,
-    redirect_uri: process.env.SPOTIFY_REDIRECT_URI!,
-    scope: ["user-read-private", "streaming"].join(","),
-    state: request,
-    show_dialog: "true",
-  });
-  const authorizeUrl = `https://accounts.spotify.com/authorize?${searchParams.toString()}`;
+  const authorizeUrl = buildAuthorizeUrl(request);
 
   return (
     <div className="relative flex h-full items-center justify-center">
@@ -146,15 +139,42 @@ export default async function LinkAccountPage({ params }: { params: Params }) {
               </div>
             </CardContent>
 
-            <CardFooter className="relative flex-1 items-end overflow-hidden">
+            <CardFooter className="relative flex-1 flex-col items-stretch gap-4 overflow-hidden">
               <div className="flex w-full items-end">
                 <Button variant="outline" className="mr-0 ml-auto" asChild>
-                  <a href={authorizeUrl}>
+                  <a href={authorizeUrl} target="_blank" rel="noreferrer noopener">
                     <ExternalLinkIcon className="mr-2 size-4" />
-                    Authenticate with Spotify
+                    Step 1: Authenticate with Spotify
                   </a>
                 </Button>
               </div>
+
+              <Separator />
+
+              <form method="get" action="/authorize" className="space-y-2">
+                <div className="text-sm font-medium md:text-base">
+                  Step 2: paste the page Spotify sent you to
+                </div>
+                <p className="text-muted-foreground text-xs md:text-sm">
+                  After you click Agree, Spotify will send you to a page starting
+                  with <code>http://127.0.0.1:8898/login</code> that won&apos;t load
+                  &mdash; that&apos;s expected. Copy that page&apos;s full address
+                  from your browser&apos;s address bar and paste it here.
+                </p>
+                <input type="hidden" name="state" value={request} />
+                <input
+                  type="url"
+                  name="url"
+                  required
+                  placeholder="http://127.0.0.1:8898/login?code=...&state=..."
+                  className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+                />
+                <div className="flex w-full items-end">
+                  <Button type="submit" className="mr-0 ml-auto">
+                    Finish linking
+                  </Button>
+                </div>
+              </form>
             </CardFooter>
           </Card>
         </ShineBorder>
