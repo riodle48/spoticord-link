@@ -14,7 +14,12 @@ import { getCurrentUser, requestAccessToken } from "@/lib/spotify";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import ErrorCard from "@/components/error-card";
 
-type SearchParams = Promise<{ code: string; error: string; state: string }>;
+type SearchParams = Promise<{
+  code?: string;
+  error?: string;
+  state?: string;
+  url?: string;
+}>;
 
 const ERRORS: { [key: string]: { title: string; message: string } } = {
   access_denied: {
@@ -29,10 +34,37 @@ export default async function LinkAccountPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const { code, error, state } = await searchParams;
+  let { code, error, state } = await searchParams;
+
+  // The user pasted the loopback redirect URL Spotify sent them to; pull the parameters out of it
+  const { url } = await searchParams;
+  if (url) {
+    try {
+      const parsed = new URL(url.trim());
+      code = parsed.searchParams.get("code") ?? code;
+      error = parsed.searchParams.get("error") ?? error;
+      state = parsed.searchParams.get("state") ?? state;
+    } catch {
+      return (
+        <ErrorPage title="That doesn't look like a Spotify link">
+          Paste the full address of the page Spotify sent you to (it starts with
+          http://127.0.0.1:8898/login). Then try again.
+        </ErrorPage>
+      );
+    }
+  }
 
   // Redirect lost users to homepage
   if (!state) redirect("https://spoticord.com");
+
+  if (!code && !error) {
+    return (
+      <ErrorPage title="Missing authorization code">
+        The address you pasted has no code in it. Make sure you copy the whole
+        address, including everything after the question mark.
+      </ErrorPage>
+    );
+  }
 
   const entry = await db.query.linkRequests.findFirst({
     where: eq(linkRequests.token, state),
@@ -57,7 +89,7 @@ export default async function LinkAccountPage({
     return <ErrorPage {...errorProps} />;
   }
 
-  const result = await requestAccessToken(code);
+  const result = await requestAccessToken(code!, state);
 
   if ("error" in result) {
     return (
