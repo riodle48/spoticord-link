@@ -65,12 +65,40 @@ export async function requestAccessToken(code: string, state: string) {
   return result;
 }
 
-export async function getCurrentUser(token: string) {
-  const response = await fetch("https://api.spotify.com/v1/me", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+/**
+ * Fetch the user's profile. librespot's client ID is shared by every librespot user, so
+ * Spotify's Web API frequently answers 429 for it; we retry briefly and otherwise give up.
+ * Returns null when the profile could not be read. The bot records the real username on
+ * its first login, so this is best-effort only.
+ */
+export async function getCurrentUser(
+  token: string,
+): Promise<{ id: string; product?: string } | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await fetch("https://api.spotify.com/v1/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
 
-  return response.json();
+    if (response.ok) {
+      return response.json();
+    }
+
+    const body = await response.text();
+    console.error(`Spotify /v1/me failed (${response.status}):`, body);
+
+    if (response.status === 429) {
+      const retryAfter = Number(response.headers.get("retry-after") ?? "0");
+      if (retryAfter > 0 && retryAfter <= 5) {
+        await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+        continue;
+      }
+    }
+
+    break;
+  }
+
+  return null;
 }
